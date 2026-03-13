@@ -1,12 +1,12 @@
 # Name: Collin Campagne
 # Contact: collinacampagne@gmail.com // ccampagne@willistonvt.org
 # Created: 01/20/2026
-# Updated: 02/10/2026
+# Updated: 03/06/2026
 # Purpose: Automate the processes required by the ERF to score parcels. Facilitates the testing of alternative thresholds.
-# Trigger: Whenever ERF requires updates, or remodelling of data.  
+# Trigger: When ERF requires updates, or remodelling of data.  
 # Inputs: 
 #   1. Parcel Layer (Must contain "MAPID" field as Primary Key), 
-#   2. One or more feature classes to be scored against the parcels, 
+#   2. One or more feature classes to be scored against the parcels, with their desired weight.  
 #   3. Threshold values for scoring.  
 # Output: Creates an area/length field, and a scoring field within the Parcel feature class. Overwrites the Total Score Field within Parcel Feature Class. 
 
@@ -29,16 +29,26 @@ aprx = arcpy.mp.ArcGISProject("CURRENT")
 
 # User inputs: 
 Parcels = arcpy.GetParameterAsText(0)
-FeatureClass = arcpy.GetParameterAsText(1)
+FeatureClass = arcpy.GetParameter(1)
 lowRank = float(arcpy.GetParameterAsText(2))
 highRank = float(arcpy.GetParameterAsText(3))
 
-# Split multivalue input into a list
-Feature_Class = FeatureClass.split(";")
+# Row Count is an arcpy Value Table method needed to count how many rows to iterate through. 
+rowCount = FeatureClass.rowCount
+
+# begin the iteration for number of rows in the Value Table. 
+for r in range(rowCount):
+    # Use the getValue method to retrieve the feature class, and its subsequent weight. 
+    fc = FeatureClass.getValue(r, 0)
+    # make sure the weight is a float!
+    if FeatureClass.getValue(r, 1) is None:
+        # If no input is given, default to 1. 
+        weight = 1.0
+    else:
+        weight = float(FeatureClass.getValue(r, 1))
 
 # Iterate through each Input Feature Class 
-for fc in Feature_Class:
-# Get name of input feature classes for naming outputs
+    # Get name of input feature classes for naming outputs
     desc1 = arcpy.Describe(fc)
     fcName = desc1.name
 
@@ -68,7 +78,7 @@ for fc in Feature_Class:
             arcpy.management.CalculateField(
                 in_table=Parcels_1,
                 field=score,
-                expression="1",
+                expression= f"1 * {weight}",
                 expression_type="PYTHON3",
                 code_block="",
                 field_type="SHORT",
@@ -241,9 +251,9 @@ for fc in Feature_Class:
                         elif value <= lowRank:
                             row[1] = 0
                         elif lowRank < value < highRank:
-                            row[1] = 1
+                            row[1] = 1 * weight
                         elif value >= highRank:
-                            row[1] = 2
+                            row[1] = 2 * weight
                         else:
                             row[1] = 0 
 
@@ -251,13 +261,13 @@ for fc in Feature_Class:
                     else:
                         # Handle None or empty values
                         if value is None:
-                            row[1] = 2
+                            row[1] = 2 * weight
 
                         # Compare numerically
                         elif lowRank > value > highRank:
-                            row[1] = 1
+                            row[1] = 1 * weight
                         elif value <= highRank:
-                            row[1] = 2
+                            row[1] = 2 * weight
                         else:
                             row[1] = 0 
                     cursor.updateRow(row)
@@ -335,7 +345,9 @@ for fc in Feature_Class:
 
     # Update: Resolved 02/10/2026. 
 
-# 2: Future versions of this tool should include adding a weight factor to each score. I currently do not have the time to implement this.
+# 2: Future versions of this tool should include adding a weight factor to each score. 
+
+    # Update: Weights have been implemented on 03/06/2026. 
 
 # With love, 
 # CC 2026 ;*
